@@ -5,7 +5,7 @@ EKS_NAMESPACE='default'
 EKS_JENKINS_CREDENTIAL_ID='kubectl-deploy-credentials'
 ECR_PATH = '629595896805.dkr.ecr.ap-northeast-2.amazonaws.com'
 ECR_IMAGE = 'jenkins-ecr'
-AWS_CREDENTIAL_ID = 'jenkins-aws-credentials'
+AWS_CREDENTIAL_ID = 'aws-credentials'
 
 node {
     stage('Clone Repository'){
@@ -27,5 +27,15 @@ node {
         docker rmi ${ECR_PATH}/${ECR_IMAGE}:v$BUILD_NUMBER
         docker rmi ${ECR_PATH}/${ECR_IMAGE}:latest
         """
+    }
+    stage('Deploy to K8S'){
+        withKubeConfig([credentialsId: "kubectl-deploy-credentials",
+                        serverUrl: "${EKS_API}",
+                        clusterName: "${EKS_CLUSTER_NAME}"]){
+            sh "sed 's/IMAGE_VERSION/v${env.BUILD_ID}/g' service.yaml > output.yaml"
+            sh "aws eks --region ${REGION} update-kubeconfig --name ${EKS_CLUSTER_NAME}"
+            sh "kubectl apply -f output.yaml"
+            sh "rm output.yaml"
+        }
     }
 }
